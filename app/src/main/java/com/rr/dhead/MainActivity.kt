@@ -11,11 +11,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
@@ -76,6 +78,10 @@ fun HeadAnimationScreen(modifier: Modifier = Modifier) {
     var shapeKeyValue by remember { mutableFloatStateOf(0f) }     // Current shape key value (0.0 to 1.0)
     var autoAnimate by remember { mutableStateOf(false) }         // Whether auto-animation is enabled
     
+    // ROTATION STATE for touch controls
+    var rotationX by remember { mutableFloatStateOf(0f) }         // Rotation around X-axis (up/down)
+    var rotationY by remember { mutableFloatStateOf(0f) }         // Rotation around Y-axis (left/right)
+    
     // Get Android context for OpenGL setup
     val context = LocalContext.current
     // Remember the renderer instance - expensive to recreate
@@ -94,26 +100,47 @@ fun HeadAnimationScreen(modifier: Modifier = Modifier) {
                 if (!autoAnimate) break
                 
                 // Calculate elapsed time and create smooth sine wave animation
-                val elapsed = (System.currentTimeMillis() - startTime) * 0.002f  // Slow animation speed
-                val newValue = (sin(elapsed) + 1f) / 2f                          // Map sin(-1,1) to (0,1)
+                val elapsed = (System.currentTimeMillis() - startTime) * HeadRenderer.ANIMATION_SPEED
+                val newValue = (sin(elapsed) + 1f) / 2f  // Map sin(-1,1) to (0,1)
                 
                 // Update both UI state and OpenGL renderer
                 shapeKeyValue = newValue
                 renderer.setShapeKeyValue(newValue)
                 
-                delay(16) // ~60fps (16ms per frame)
+                delay(HeadRenderer.FRAME_DELAY_MS) // ~60fps
             }
         }
+    }
+    
+    // ROTATION UPDATE
+    // Update renderer rotation when rotation state changes
+    LaunchedEffect(rotationX, rotationY) {
+        renderer.setRotation(rotationX, rotationY)
     }
     
     // UI LAYOUT
     // Box allows overlapping children - 3D view as background, controls as overlay
     Box(modifier = modifier.fillMaxSize()) {
         
-        // OPENGL 3D VIEW
+        // OPENGL 3D VIEW WITH TOUCH CONTROLS
         // AndroidView integrates native Android views into Compose
         AndroidView(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    // TOUCH GESTURE DETECTION
+                    // Detect drag gestures to rotate the 3D model
+                    detectDragGestures { change, dragAmount ->
+                        // Convert screen drag to rotation angles
+                        // Horizontal drag (X) rotates around Y-axis (left/right)
+                        // Vertical drag (Y) rotates around X-axis (up/down)
+                        rotationY += dragAmount.x * HeadRenderer.TOUCH_SENSITIVITY
+                        rotationX -= dragAmount.y * HeadRenderer.TOUCH_SENSITIVITY  // Invert Y for natural feel
+                        
+                        // Keep rotations within reasonable bounds to prevent over-rotation
+                        rotationX = rotationX.coerceIn(-HeadRenderer.MAX_ROTATION_X, HeadRenderer.MAX_ROTATION_X)
+                    }
+                },
             factory = { context ->
                 GLSurfaceView(context).apply {
                     setEGLContextClientVersion(2)        // Use OpenGL ES 2.0
@@ -142,6 +169,13 @@ fun HeadAnimationScreen(modifier: Modifier = Modifier) {
                     text = "KeyOne Shape Key",
                     color = Color.White,
                     style = MaterialTheme.typography.labelMedium
+                )
+                
+                // Touch instruction
+                Text(
+                    text = "Touch and drag to rotate model",
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall
                 )
                 
                 // SLIDER CONTROL
@@ -189,16 +223,27 @@ fun HeadAnimationScreen(modifier: Modifier = Modifier) {
 }
 
 /**
- * OpenGL ES Renderer for 3D head model with shape key animation.
+ * OpenGL ES Renderer for 3D head model with shape key animation and touch controls.
  * 
  * This class demonstrates:
  * - OpenGL ES 2.0 shader programming
  * - Vertex buffer management and morphing
  * - 3D matrix transformations (MVP matrix)
  * - Basic lighting calculations
+ * - Touch-based model rotation
  * - Thread-safe state updates from UI thread
  */
 class HeadRenderer(private val context: android.content.Context) : GLSurfaceView.Renderer {
+    
+    companion object {
+        // Touch control constants
+        const val TOUCH_SENSITIVITY = 0.01f
+        const val MAX_ROTATION_X = 1.5f  // ~±85 degrees in radians
+        
+        // Animation constants
+        const val ANIMATION_SPEED = 0.002f
+        const val FRAME_DELAY_MS = 16L  // ~60fps
+    }
     
     // SHADER PROGRAMS
     // Vertex shader: processes each vertex, calculates position and lighting
@@ -257,6 +302,12 @@ class HeadRenderer(private val context: android.content.Context) : GLSurfaceView
     // ANIMATION STATE
     @Volatile // Ensures thread-safe access from UI thread
     private var shapeKeyValue = 0f
+    
+    // ROTATION STATE for touch controls
+    @Volatile // Thread-safe access from UI thread
+    private var rotationX = 0f  // Rotation around X-axis (up/down)
+    @Volatile // Thread-safe access from UI thread  
+    private var rotationY = 0f  // Rotation around Y-axis (left/right)
     
     // 3D MODEL DATA
     private var headModel: GLBModel? = null
@@ -318,8 +369,13 @@ class HeadRenderer(private val context: android.content.Context) : GLSurfaceView
         updateMorphedVertices(shapeKeyValue)
         
         // 3D TRANSFORMATIONS
-        // Reset model matrix (no rotation or scaling)
+        // Set up model matrix with rotation from touch controls
         Matrix.setIdentityM(modelMatrix, 0)
+        
+        // Apply rotations for touch controls
+        // Order matters: typically rotate around Y first (left/right), then X (up/down)
+        Matrix.rotateM(modelMatrix, 0, Math.toDegrees(rotationY.toDouble()).toFloat(), 0f, 1f, 0f)  // Y-axis rotation
+        Matrix.rotateM(modelMatrix, 0, Math.toDegrees(rotationX.toDouble()).toFloat(), 1f, 0f, 0f)  // X-axis rotation
         
         // Set camera position - positioned to the right side looking at origin
         Matrix.setLookAtM(viewMatrix, 0, 
@@ -420,6 +476,16 @@ class HeadRenderer(private val context: android.content.Context) : GLSurfaceView
      */
     fun setShapeKeyValue(value: Float) {
         shapeKeyValue = value
+    }
+    
+    /**
+     * Thread-safe method to update model rotation from UI thread.
+     * @param rotX Rotation around X-axis in radians (up/down)
+     * @param rotY Rotation around Y-axis in radians (left/right)
+     */
+    fun setRotation(rotX: Float, rotY: Float) {
+        rotationX = rotX
+        rotationY = rotY
     }
     
     private fun updateMorphedVertices(morphWeight: Float) {

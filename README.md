@@ -6,15 +6,18 @@ A comprehensive Android application demonstrating 3D model loading and shape key
 
 - **GLB Model Loading**: Parse and load 3D models in GLB (Binary GLTF) format
 - **Shape Key Animation**: Real-time vertex morphing for facial expressions and animations
-- **Interactive Controls**: Manual slider control and automatic animation modes
-- **Modern UI**: Jetpack Compose integration with native OpenGL ES rendering
-- **Comprehensive Comments**: Extensively documented code for learning
+- **Touch Controls**: Intuitive drag-to-rotate interaction for 360° model viewing
+- **Interactive UI**: Manual slider control and automatic animation modes
+- **Modern Architecture**: Jetpack Compose integration with native OpenGL ES rendering
+- **Comprehensive Documentation**: Extensively commented code for learning
 
 ## Demo
 
 The app loads a 3D head model and allows you to:
-- Manually control shape key values with a slider (0.0 to 1.0)
-- Enable auto-animation for smooth looping transitions
+- **Touch and drag** to rotate the model and view it from all angles
+- **Manually control** shape key values with a slider (0.0 to 1.0)
+- **Enable auto-animation** for smooth looping transitions
+- **Combine interactions** - rotate while animations are running
 - See real-time 3D morphing with proper lighting
 
 ## Technical Architecture
@@ -36,11 +39,13 @@ The app loads a 3D head model and allows you to:
    - OpenGL ES 2.0 renderer
    - Vertex shader with lighting calculations
    - Real-time vertex morphing
+   - Touch-based 3D rotation
    - MVP matrix transformations
 
 ### Learning Concepts Demonstrated
 
 - **3D Graphics**: OpenGL ES shaders, vertex buffers, matrix math
+- **Touch Interaction**: Gesture detection and 3D rotation mapping
 - **File Parsing**: Binary format parsing, JSON processing
 - **Android UI**: Jetpack Compose state management and lifecycle
 - **Animation**: Coroutine-based smooth animation loops
@@ -276,6 +281,30 @@ This setup provides you with:
 - ✅ Material Design 3 components
 
 ## Code Highlights
+
+### Touch-Based 3D Rotation
+```kotlin
+// Touch gesture detection for model rotation
+AndroidView(
+    modifier = Modifier
+        .fillMaxSize()
+        .pointerInput(Unit) {
+            detectDragGestures { change, dragAmount ->
+                // Convert screen drag to rotation angles
+                rotationY += dragAmount.x * TOUCH_SENSITIVITY  // Left/right
+                rotationX -= dragAmount.y * TOUCH_SENSITIVITY  // Up/down (inverted)
+                
+                // Keep rotations within bounds
+                rotationX = rotationX.coerceIn(-MAX_ROTATION_X, MAX_ROTATION_X)
+            }
+        }
+)
+
+// Apply rotations in OpenGL renderer
+Matrix.setIdentityM(modelMatrix, 0)
+Matrix.rotateM(modelMatrix, 0, Math.toDegrees(rotationY.toDouble()).toFloat(), 0f, 1f, 0f)
+Matrix.rotateM(modelMatrix, 0, Math.toDegrees(rotationX.toDouble()).toFloat(), 1f, 0f, 0f)
+```
 
 ### Shape Key Animation
 ```kotlin
