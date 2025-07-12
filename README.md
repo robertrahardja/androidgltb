@@ -58,12 +58,45 @@ app/src/main/
 └── res/                        # Android resources
 ```
 
+## Dependencies and Libraries
+
+This project uses modern Android development tools and libraries:
+
+### Core Android Libraries
+- **Android Gradle Plugin**: `8.11.1` - Build system
+- **Kotlin**: `2.0.21` - Primary programming language
+- **Compile SDK**: `36` - Latest Android API features
+- **Min SDK**: `24` (Android 7.0) - Broad device compatibility
+
+### Jetpack Compose UI Framework
+- **Compose BOM**: `2024.09.00` - Bill of Materials for version alignment
+- **Activity Compose**: `1.10.1` - Activity integration
+- **UI**: Latest - Core UI components
+- **UI Graphics**: Latest - Graphics and drawing APIs
+- **Material3**: Latest - Material Design 3 components
+- **UI Tooling**: Latest - Development tools and previews
+
+### AndroidX Libraries
+- **Core KTX**: `1.16.0` - Kotlin extensions
+- **Lifecycle Runtime KTX**: `2.9.1` - Lifecycle-aware components
+
+### Testing Dependencies
+- **JUnit**: `4.13.2` - Unit testing framework
+- **AndroidX JUnit**: `1.2.1` - Android testing extensions
+- **Espresso Core**: `3.6.1` - UI testing framework
+
+### Native Libraries (Built-in)
+- **OpenGL ES 2.0** - 3D graphics rendering (Android system)
+- **GLSurfaceView** - OpenGL surface for rendering
+- **JSON** - Built-in JSON parsing for GLTF metadata
+
 ## Setup Instructions
 
 1. **Prerequisites**
    - Android Studio 2024.1+
    - Minimum SDK: API 24 (Android 7.0)
    - Target SDK: API 36
+   - Java 11 or higher
 
 2. **Clone and Build**
    ```bash
@@ -78,6 +111,169 @@ app/src/main/
    # or use the deploy script
    ./deploy.sh
    ```
+
+## Step-by-Step Gradle Integration
+
+If you want to integrate these technologies into your own project, follow these steps:
+
+### 1. Project-Level Configuration
+
+**`build.gradle.kts` (Project level):**
+```kotlin
+plugins {
+    alias(libs.plugins.android.application) apply false
+    alias(libs.plugins.kotlin.android) apply false
+    alias(libs.plugins.kotlin.compose) apply false
+}
+```
+
+**`gradle/libs.versions.toml`:**
+```toml
+[versions]
+agp = "8.11.1"
+kotlin = "2.0.21"
+coreKtx = "1.16.0"
+lifecycleRuntimeKtx = "2.9.1"
+activityCompose = "1.10.1"
+composeBom = "2024.09.00"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+```
+
+### 2. App-Level Configuration
+
+**`app/build.gradle.kts`:**
+```kotlin
+plugins {
+    alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.compose)
+}
+
+android {
+    namespace = "your.package.name"
+    compileSdk = 36
+
+    defaultConfig {
+        applicationId = "your.package.name"
+        minSdk = 24
+        targetSdk = 36
+        versionCode = 1
+        versionName = "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+    
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+    
+    buildFeatures {
+        compose = true  // Enable Jetpack Compose
+    }
+}
+
+dependencies {
+    // Core Android
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycle.runtime.ktx)
+    
+    // Jetpack Compose
+    implementation(libs.androidx.activity.compose)
+    implementation(platform(libs.androidx.compose.bom))
+    implementation(libs.androidx.ui)
+    implementation(libs.androidx.ui.graphics)
+    implementation(libs.androidx.ui.tooling.preview)
+    implementation(libs.androidx.material3)
+    
+    // For development tools
+    debugImplementation(libs.androidx.ui.tooling)
+}
+```
+
+### 3. OpenGL ES Integration
+
+No additional dependencies needed for OpenGL ES - it's part of Android:
+
+```kotlin
+// In your Activity
+import android.opengl.GLSurfaceView
+import android.opengl.GLES20
+
+// AndroidView for Compose integration
+AndroidView(
+    factory = { context ->
+        GLSurfaceView(context).apply {
+            setEGLContextClientVersion(2)  // OpenGL ES 2.0
+            setRenderer(yourRenderer)
+        }
+    }
+)
+```
+
+### 4. Coroutines for Animation
+
+Coroutines are included with Kotlin - no extra dependencies:
+
+```kotlin
+// In your Composable
+LaunchedEffect(animationTrigger) {
+    while (isActive) {
+        // Animation loop
+        delay(16) // 60fps
+    }
+}
+```
+
+### 5. File Parsing Dependencies
+
+For GLB/JSON parsing, use built-in Android libraries:
+
+```kotlin
+// Built-in JSON parsing
+import org.json.JSONObject
+
+// Built-in file I/O
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+```
+
+### 6. Gradle Wrapper Configuration
+
+**`gradle.properties`:**
+```properties
+android.useAndroidX=true
+android.enableJetifier=true
+kotlin.code.style=official
+android.defaults.buildfeatures.buildconfig=true
+android.nonTransitiveRClass=false
+org.gradle.parallel=true
+org.gradle.caching=true
+```
+
+This setup provides you with:
+- ✅ Modern Kotlin development with latest features
+- ✅ Jetpack Compose for declarative UI
+- ✅ OpenGL ES 2.0 for high-performance 3D graphics
+- ✅ Coroutines for smooth animations
+- ✅ Built-in JSON parsing for 3D file formats
+- ✅ Material Design 3 components
 
 ## Code Highlights
 
